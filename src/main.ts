@@ -325,10 +325,10 @@ class MenuCapacityError extends Error {
 }
 
 const defaultConfig: PluginConfig = {
-  baseUrl: 'http://192.168.31.63:9527',
-  username: 'test',
+  baseUrl: '',
+  username: '',
   password: '',
-  playerUrl: 'http://192.168.31.63:9527/music',
+  playerUrl: '',
   importPrefix: 'LX - ',
   defaultQuality: '128k',
   autoRefreshMinutes: 30,
@@ -361,7 +361,7 @@ function numericValue(value: unknown, fallback = 0): number {
 
 function normalizeBaseUrl(url: string): string {
   const trimmed = url.trim();
-  if (!trimmed) return defaultConfig.baseUrl;
+  if (!trimmed) return '';
   return trimmed.replace(/\/+$/, '');
 }
 
@@ -369,6 +369,10 @@ function joinUrl(baseUrl: string, path: string): string {
   const normalizedBase = normalizeBaseUrl(baseUrl);
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${normalizedBase}${normalizedPath}`;
+}
+
+function defaultPlayerUrl(baseUrl: string): string {
+  return baseUrl ? joinUrl(baseUrl, '/music') : '';
 }
 
 function onlineSourceName(source: OnlineSource): string {
@@ -426,7 +430,7 @@ function normalizeConfig(input: Partial<PluginConfig>, previous?: PluginConfig):
     baseUrl,
     username: safeString(input.username, base.username).trim(),
     password: typeof input.password === 'string' ? input.password : base.password,
-    playerUrl: safeString(input.playerUrl, base.playerUrl).trim() || joinUrl(baseUrl, '/music'),
+    playerUrl: safeString(input.playerUrl, base.playerUrl).trim() || defaultPlayerUrl(baseUrl),
     importPrefix: typeof input.importPrefix === 'string' ? input.importPrefix : base.importPrefix,
     defaultQuality: safeString(input.defaultQuality, base.defaultQuality).trim() || '128k',
     autoRefreshMinutes: Math.max(0, Number(input.autoRefreshMinutes ?? base.autoRefreshMinutes) || 0),
@@ -482,8 +486,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 async function login(config: PluginConfig, force = false): Promise<LxSession> {
-  if (!config.username || !config.password) {
-    throw new Error('LX username and password are required');
+  if (!config.baseUrl || !config.username || !config.password) {
+    throw new Error('LX server URL, username and password are required');
   }
 
   const existing = await loadSession();

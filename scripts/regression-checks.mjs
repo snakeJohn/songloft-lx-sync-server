@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 
 const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../static/js/app.js', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../static/index.html', import.meta.url), 'utf8');
+const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
 function functionBlock(source, name) {
   const match = source.match(new RegExp(`function ${name}\\([^)]*\\) \\{([\\s\\S]*?)\\n\\}`));
@@ -64,6 +66,14 @@ const checks = [
       && /async function loadOnlineContentSafely/.test(app)
       && /Promise\.allSettled/.test(initBlock)
       && /loadPlaylists\(false\)/.test(initBlock)
+  },
+  {
+    name: 'public release does not ship personal LAN defaults',
+    pass: !/192\.168\.31\.63/.test([main, app, html, readme].join('\n'))
+      && !/username:\s*'test'/.test(main)
+      && /baseUrl:\s*''/.test(main)
+      && /username:\s*''/.test(main)
+      && /playerUrl:\s*''/.test(main)
   }
 ];
 

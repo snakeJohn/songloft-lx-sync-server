@@ -361,7 +361,9 @@ function fillConfig(config) {
   $('default-quality').value = config.defaultQuality || '128k';
   $('auto-refresh').value = String(config.autoRefreshMinutes ?? 30);
   $('record-events').checked = !!config.recordPlayEvents;
-  $('player-link').href = config.playerUrl || 'http://192.168.31.63:9527/music';
+  const playerLink = $('player-link');
+  playerLink.href = config.playerUrl || '#';
+  playerLink.setAttribute('aria-disabled', config.playerUrl ? 'false' : 'true');
 }
 
 function renderStatus() {
@@ -370,10 +372,10 @@ function renderStatus() {
   const snapshot = status.snapshot;
   const eventCount = (status.recentPlayEvents || []).length;
   const latestEvent = (status.recentPlayEvents || [])[0];
-  $('status-line').textContent = status.config.hasPassword
+  $('status-line').textContent = status.config.hasPassword && status.config.baseUrl && status.config.username
     ? `已配置 ${status.config.username}@${status.config.baseUrl}`
-    : '尚未保存 LX 密码';
-  setText('summary-connection', status.config.hasPassword ? '已连接' : '待配置');
+    : '请填写 LX Server 配置';
+  setText('summary-connection', status.config.hasPassword && status.config.baseUrl && status.config.username ? '已配置' : '待配置');
   setText('summary-player', status.config.playerUrl || status.config.baseUrl || '等待配置');
   if (snapshot) {
     $('snapshot-meta').textContent = `${snapshot.playlistCount} 个歌单，${snapshot.songCount} 首歌，${formatTime(snapshot.fetchedAt)}`;
