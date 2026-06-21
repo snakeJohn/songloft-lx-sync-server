@@ -67,6 +67,14 @@ const state = {
     busy: false,
     loadToken: 0,
     detailToken: 0
+  },
+  songSearch: {
+    source: 'kw',
+    keyword: '',
+    results: [],
+    busy: false,
+    loadToken: 0,
+    lastQuery: ''
   }
 };
 
@@ -691,6 +699,102 @@ function renderOnlineDetail() {
   });
 }
 
+function searchSongAlbum(song) {
+  return song.albumName || song.album || song.meta?.albumName || song.meta?.album || '';
+}
+
+function renderSongSearchPanel() {
+  const search = state.songSearch;
+  $('song-search-source').innerHTML = state.online.sources.map((source) => `
+    <option value="${escapeHtml(source.id)}">${escapeHtml(source.name)}</option>
+  `).join('');
+  $('song-search-source').value = search.source;
+  $('song-search-source').disabled = search.busy;
+  $('song-search-input').value = search.keyword;
+  $('song-search-input').disabled = search.busy;
+  $('song-search-button').disabled = search.busy;
+  $('song-search-clear').disabled = search.busy || (!search.keyword && !search.results.length);
+
+  $('song-search-status').textContent = search.busy
+    ? '正在搜索 LX Server'
+    : search.lastQuery
+      ? `${sourceLabel(search.source)} · ${search.lastQuery} · ${search.results.length} 首`
+      : '输入歌曲名或作者后搜索 LX Server';
+
+  const list = $('song-search-results');
+  if (!search.results.length) {
+    list.innerHTML = search.lastQuery
+      ? '<div class="empty">没有找到匹配歌曲</div>'
+      : '<div class="empty">等待搜索</div>';
+    return;
+  }
+
+  list.innerHTML = search.results.slice(0, 200).map((song, index) => `
+    <div class="song-row">
+      ${coverMarkup(songCover(song), sourceInitial(song.source || search.source), 'cover-art-small')}
+      <div>
+        <div class="song-title">${escapeHtml(song.name || 'Untitled')}</div>
+        <div class="song-meta">${escapeHtml(song.singer || '')}${searchSongAlbum(song) ? ' · ' + escapeHtml(searchSongAlbum(song)) : ''}</div>
+      </div>
+      <div class="song-actions">
+        <span class="tag">${escapeHtml(song.source || search.source)}</span>
+        <button class="button secondary small" type="button" data-search-song="${index}">推送</button>
+      </div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('[data-search-song]').forEach((button) => {
+    button.addEventListener('click', () => {
+      playMiotSearchSongUrl(Number(button.dataset.searchSong || 0), button);
+    });
+  });
+}
+
+async function searchSongsFromLx() {
+  const keyword = $('song-search-input').value.trim();
+  state.songSearch.keyword = keyword;
+  state.songSearch.source = $('song-search-source').value;
+  if (!keyword) {
+    state.songSearch.results = [];
+    state.songSearch.lastQuery = '';
+    showToast('请输入歌曲名或作者', true);
+    renderSongSearchPanel();
+    return;
+  }
+
+  const token = ++state.songSearch.loadToken;
+  state.songSearch.busy = true;
+  renderSongSearchPanel();
+  try {
+    const data = await pluginApi.post('/api/search', {
+      keyword,
+      source: state.songSearch.source,
+      page: 1,
+      pageSize: 30
+    });
+    if (token !== state.songSearch.loadToken) return;
+    state.songSearch.results = Array.isArray(data.songs) ? data.songs : [];
+    state.songSearch.lastQuery = keyword;
+  } catch (err) {
+    if (token === state.songSearch.loadToken) {
+      showToast(`歌曲搜索失败: ${errorMessage(err)}`, true);
+    }
+  } finally {
+    if (token === state.songSearch.loadToken) {
+      state.songSearch.busy = false;
+      renderSongSearchPanel();
+    }
+  }
+}
+
+function clearSongSearch() {
+  state.songSearch.keyword = '';
+  state.songSearch.results = [];
+  state.songSearch.lastQuery = '';
+  $('song-search-input').value = '';
+  renderSongSearchPanel();
+}
+
 function playEventTypeLabel(type) {
   const labels = {
     play: '播放',
@@ -835,7 +939,11 @@ async function loadOnlineSources() {
     if (!state.online.sources.some((source) => source.id === state.online.source)) {
       state.online.source = state.online.sources[0].id;
     }
+    if (!state.online.sources.some((source) => source.id === state.songSearch.source)) {
+      state.songSearch.source = state.online.sources[0].id;
+    }
   }
+  renderSongSearchPanel();
 }
 
 async function loadOnlineContentSafely() {
@@ -1034,6 +1142,32 @@ async function playMiotOnlineSongUrl(songIndex, button) {
     return;
   }
   const song = state.online.songs[songIndex];
+  if (!song) {
+    showToast('歌曲不存在', true);
+    return;
+  }
+  setBusy(button, true, '推送中');
+  try {
+    const result = await pluginApi.post('/api/online/miot/play-song-url', {
+      accountId: state.miot.selectedAccountId,
+      deviceId: state.miot.selectedDeviceId,
+      songInfo: song
+    });
+    showToast(`已推送单曲：${result.song?.title || song.name || '当前歌曲'}`);
+    await loadStatus();
+  } catch (err) {
+    showToast(`单曲推送失败: ${errorMessage(err)}`, true);
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+async function playMiotSearchSongUrl(songIndex, button) {
+  if (!miotReady()) {
+    showToast('请选择可用的小爱音箱设备', true);
+    return;
+  }
+  const song = state.songSearch.results[songIndex];
   if (!song) {
     showToast('歌曲不存在', true);
     return;
@@ -1326,6 +1460,18 @@ function bindEvents() {
   $('online-refresh-button').addEventListener('click', refreshOnline);
   $('online-import-button').addEventListener('click', () => importOnlineSelected(false));
   $('online-miot-button').addEventListener('click', () => importOnlineSelected(true));
+  $('song-search-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await searchSongsFromLx();
+  });
+  $('song-search-source').addEventListener('change', (event) => {
+    state.songSearch.source = event.target.value;
+    renderSongSearchPanel();
+  });
+  $('song-search-input').addEventListener('input', (event) => {
+    state.songSearch.keyword = event.target.value;
+  });
+  $('song-search-clear').addEventListener('click', clearSongSearch);
   $('select-all-button').addEventListener('click', () => {
     state.selected = new Set(state.playlists.map((p) => p.id));
     renderPlaylists();
@@ -1341,10 +1487,12 @@ async function init() {
   try {
     await loadStatus();
     await loadPlaylists(false);
+    renderSongSearchPanel();
   } catch (err) {
     renderPlaylists();
     renderMiotPanel();
     renderOnlinePanel();
+    renderSongSearchPanel();
     showToast(`初始化失败: ${errorMessage(err)}`, true);
     return;
   }

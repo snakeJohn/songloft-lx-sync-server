@@ -225,6 +225,37 @@
           </div>
         </div>
 
+        <div class="panel song-search-panel">
+          <div class="song-search-header panel-header">
+            <div>
+              <span class="eyebrow">Search</span>
+              <h2>歌曲/作者搜索</h2>
+              <p id="song-search-status">输入歌曲名或作者后搜索 LX Server</p>
+            </div>
+          </div>
+          <form id="song-search-form" class="song-search-form">
+            <label>
+              <span>平台</span>
+              <select id="song-search-source">
+                <option value="kw">酷我音乐</option>
+                <option value="kg">酷狗音乐</option>
+                <option value="tx">QQ音乐</option>
+                <option value="wy">网易云音乐</option>
+                <option value="mg">咪咕音乐</option>
+              </select>
+            </label>
+            <label>
+              <span>歌曲或作者</span>
+              <input id="song-search-input" name="songSearch" type="search" placeholder="歌曲名、作者、歌手">
+            </label>
+            <button id="song-search-button" class="button icon" type="submit"><span class="button-glyph" aria-hidden="true">⌕</span>搜索</button>
+            <button id="song-search-clear" class="button secondary icon" type="button"><span class="button-glyph" aria-hidden="true">×</span>清除</button>
+          </form>
+          <div id="song-search-results" class="song-list song-search-results">
+            <div class="empty">等待搜索</div>
+          </div>
+        </div>
+
         <div class="toolbar panel">
           <div>
             <span class="eyebrow">Library</span>

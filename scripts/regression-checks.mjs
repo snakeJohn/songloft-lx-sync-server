@@ -35,6 +35,23 @@ const checks = [
       && /async function handleMusicUrlRequest/.test(main)
   },
   {
+    name: 'LX song search calls server search endpoint with name parameter',
+    pass: /api\/music\/search/.test(main)
+      && /name:\s*keyword/.test(main)
+      && /limit:\s*normalizedPageSize/.test(main)
+      && /normalizeOnlineSource\(body\.source/.test(main)
+  },
+  {
+    name: 'static plugin page exposes LX song and author search controls',
+    pass: /id="song-search-form"/.test(html)
+      && /id="song-search-source"/.test(html)
+      && /id="song-search-input"/.test(html)
+      && /id="song-search-results"/.test(html)
+      && /songSearch/.test(app)
+      && /pluginApi\.post\('\/api\/search'/.test(app)
+      && /playMiotSearchSongUrl/.test(app)
+  },
+  {
     name: 'frontend refreshes status after plugin-triggered playback',
     pass: (app.match(/await loadStatus\(\)/g) || []).length >= 4
   },

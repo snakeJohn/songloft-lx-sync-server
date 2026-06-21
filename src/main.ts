@@ -295,6 +295,16 @@ interface OnlineImportResult {
   detail: ImportDetail;
 }
 
+interface SongSearchResult {
+  results: SearchResultItem[];
+  songs: LxMusicInfo[];
+  total: number;
+  source: OnlineSource;
+  sourceName: string;
+  page: number;
+  pageSize: number;
+}
+
 interface PluginTabEntry {
   plugin_id: number;
   entry_path: string;
@@ -1655,31 +1665,59 @@ function requestBodyObject(req: HTTPRequest): Record<string, unknown> {
     : {};
 }
 
-async function searchSongs(keyword: string, page = 1, pageSize = 30): Promise<SearchResultItem[]> {
+async function searchSongs(rawKeyword: string, source: OnlineSource = 'kw', page = 1, pageSize = 30): Promise<SongSearchResult> {
   const config = await loadConfig();
-  const snapshot = await getSnapshot(false);
-  const needle = keyword.trim().toLowerCase();
-  const matched = allSongs(snapshot).filter((song) => {
-    if (!needle) return true;
-    return [
-      song.name,
-      song.singer,
-      songAlbum(song),
-      song.source
-    ].join(' ').toLowerCase().includes(needle);
-  });
+  const normalizedPage = Math.max(1, page);
   const normalizedPageSize = Math.min(100, Math.max(1, pageSize));
-  const start = Math.max(0, page - 1) * normalizedPageSize;
-  return matched.slice(start, start + normalizedPageSize).map((song) => toSearchResult(song, config.defaultQuality));
+  const keyword = rawKeyword.trim();
+  if (!keyword) {
+    return {
+      results: [],
+      songs: [],
+      total: 0,
+      source,
+      sourceName: onlineSourceName(source),
+      page: normalizedPage,
+      pageSize: normalizedPageSize
+    };
+  }
+
+  const payload = await lxFetchJson<LxMusicInfo[] | { list?: LxMusicInfo[]; total?: number }>(
+    queryPath('/api/music/search', {
+      name: keyword,
+      source,
+      page: normalizedPage,
+      limit: normalizedPageSize
+    }),
+    { method: 'GET' },
+    true
+  );
+  const payloadObject = Array.isArray(payload) ? null : payload;
+  const songs = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payloadObject?.list)
+      ? payloadObject.list
+      : [];
+  const total = payloadObject ? numericValue(payloadObject.total, songs.length) : songs.length;
+
+  return {
+    results: songs.map((song) => toSearchResult(song, config.defaultQuality)),
+    songs,
+    total,
+    source,
+    sourceName: onlineSourceName(source),
+    page: normalizedPage,
+    pageSize: normalizedPageSize
+  };
 }
 
 async function handleSearchRequest(req: HTTPRequest): Promise<HTTPResponse> {
   const body = requestBodyObject(req);
   const keyword = primitiveString(body.keyword ?? body.query ?? body.q);
+  const source = normalizeOnlineSource(body.source || 'kw');
   const page = Math.max(1, numericValue(body.page, 1));
   const pageSize = Math.min(100, Math.max(1, numericValue(body.pageSize ?? body.page_size, 30)));
-  const results = await searchSongs(keyword, page, pageSize);
-  return jsonResponse({ results });
+  return jsonResponse(await searchSongs(keyword, source, page, pageSize));
 }
 
 function parseSourceData(value: unknown): Record<string, unknown> | null {

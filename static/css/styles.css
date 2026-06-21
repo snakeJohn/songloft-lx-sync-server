@@ -293,6 +293,7 @@ select {
 .toolbar,
 .miot-panel,
 .online-panel,
+.song-search-panel,
 .playlist-panel,
 .detail-panel,
 .events-panel {
@@ -590,6 +591,18 @@ a:focus-visible {
   align-items: end;
   grid-column: 1 / -1;
   margin: 0;
+}
+
+.song-search-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(260px, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+  margin: 14px 0 0;
+}
+
+.song-search-results {
+  max-height: 430px;
 }
 
 .online-browser {
@@ -929,6 +942,7 @@ a:focus-visible {
   .toolbar,
   .miot-header,
   .online-header,
+  .song-search-header,
   .detail-header {
     align-items: stretch;
     flex-direction: column;
@@ -952,7 +966,8 @@ a:focus-visible {
 
   .miot-grid,
   .online-controls,
-  .online-search-form {
+  .online-search-form,
+  .song-search-form {
     grid-template-columns: 1fr;
   }
 
